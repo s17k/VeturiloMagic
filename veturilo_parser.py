@@ -10,7 +10,7 @@ def download_data():
     veturilo_data.close()
 
 
-# download_data()
+download_data()
 
 xmldoc = minidom.parse('veturilo.xml')
 itemlist = xmldoc.getElementsByTagName('place')
