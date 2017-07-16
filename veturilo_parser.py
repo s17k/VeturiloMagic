@@ -48,9 +48,6 @@ class BikeSeen:
             data['first_seen']= self.date
             the_table.insert(data)
 
-        #print('Added seen bike bike_id:{} station_id:{} date:{}'
-        #      .format(self.bike_id, self.station_id, str(self.date)))
-
 
 def fetch_data_to_db():
     download_data()
@@ -62,8 +59,6 @@ def fetch_data_to_db():
     for s in stations:
         if int(s.attributes['bikes'].value) == 0:
             continue
-
-        #print(s.attributes['name'].value, s.attributes['number'].value, s.attributes['bike_numbers'].value)
 
         bike_numbers = s.attributes['bike_numbers'].value.split(',')
 
