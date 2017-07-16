@@ -154,7 +154,17 @@ while True:
 
     print 'Time now {}, waiting {} Seconds'.format(datetime.datetime.now().time(), time_to_wait)
 
-    time.sleep(time_to_wait)
+
+    def wait_with_counting(duration):
+        while True:
+            print '{} seconds left'.format(duration)
+            time.sleep(min(10.0, duration))
+            duration -= 10.0
+            if duration <= 0.0:
+                break
+
+
+    wait_with_counting(time_to_wait)
 
 
 
