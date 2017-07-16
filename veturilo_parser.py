@@ -152,7 +152,7 @@ while True:
 
     time_to_wait = max(0.0, 45.0-time_elapsed)
 
-    print 'Waiting {} Seconds'.format(time_to_wait)
+    print 'Time now {}, waiting {} Seconds'.format(datetime.datetime.now().time(), time_to_wait)
 
     time.sleep(time_to_wait)
 
