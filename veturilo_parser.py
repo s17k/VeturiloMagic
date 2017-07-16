@@ -40,6 +40,9 @@ def db_init():
         if 'first_seen' not in bike_stops_table.columns:
             bike_stops_table.create_column('first_seen', sqlalchemy.DATETIME)
 
+        bike_ids_table.create_index(['bike_id'])
+        bike_stops_table.create_index(['bike_id', 'station_id', 'first_seen'])
+
         try:
             tx.commit()
         except:
@@ -165,11 +168,3 @@ while True:
 
 
     wait_with_counting(time_to_wait)
-
-
-
-
-
-
-    
-
