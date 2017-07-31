@@ -1,10 +1,10 @@
-import requests
-import dataset
 import datetime
-import sqlalchemy
 import time
 from xml.dom import minidom
 
+import dataset
+import requests
+import sqlalchemy
 
 DB_URL = 'sqlite:///veturilo.db'
 BIKE_STOPS_TABLE_NAME = 'bike_stops'
@@ -63,39 +63,46 @@ class BikeSeen:
         self.station_id = station_id
         self.date = datetime.datetime.now()
 
+    def find_last_occurrence_in_db(transaction):
+        sql_string = 'SELECT * FROM {} WHERE bike_id={} ORDER BY first_seen DESC LIMIT 1' \
+            .format(BIKE_STOPS_TABLE_NAME, self.bike_id)
+
+        results = [x for x in transaction.query(sql_string)]
+
+        result = None
+
+        if len(results) > 0:
+            result = results[0]
+
+        return result
+
     def add_bike_to_data_set(self, transaction):
         station_changes = 0
 
         bike_stops_table = transaction[BIKE_STOPS_TABLE_NAME]
         bike_ids_table = transaction[BIKE_IDS_TABLE_NAME]
 
-        sql_string = 'SELECT * FROM {} WHERE bike_id={} ORDER BY first_seen DESC LIMIT 1'\
-            .format(BIKE_STOPS_TABLE_NAME, self.bike_id)
-
-        results = [x for x in transaction.query(sql_string)]
-        result = None
-        if len(results) > 0:
-            result = results[0]
+        last_occurrence = BikeSeen.find_last_occurrence_in_db(transaction)
 
         data = dict()
-        data['bike_id']= self.bike_id
-        data['station_id']= self.station_id
-        data['last_seen']= self.date
+        data['bike_id'] = self.bike_id
+        data['station_id'] = self.station_id
+        data['last_seen'] = self.date
         data['times_seen'] = 1
 
-        if len(results)>0 and result['station_id'] == self.station_id:
-            data['first_seen']= result['first_seen']
-            data['last_seen']= self.date
-            data['times_seen']= result['times_seen'] + 1
+        if last_occurrence and last_occurrence['station_id'] == self.station_id:
+            data['first_seen'] = last_occurrence['first_seen']
+            data['last_seen'] = self.date
+            data['times_seen'] = last_occurrence['times_seen'] + 1
             bike_stops_table.update(data, ['bike_id', 'station_id', 'first_seen'])
         else:
             station_changes += 1
-            data['first_seen']= self.date
+            data['first_seen'] = self.date
             bike_stops_table.insert(data)
 
         if bike_ids_table.find_one(bike_id=self.bike_id) is None:
             bike_ids_table.insert({'bike_id': self.bike_id})
-            print 'Found a new bike with bike_id = {}'.format(self.bike_id)
+            print('Found a new bike with bike_id = {}'.format(self.bike_id))
 
         return station_changes
 
@@ -131,36 +138,37 @@ def fetch_data_to_db():
 
         try:
             tx.commit()
-            print 'Successfully updated {} entries'.format(station_changes)
+            print('Successfully updated {} entries'.format(station_changes))
         except:
-            print 'Error Occurred'
+            print('Error Occurred')
             tx.rollback()
 
-print 'Clearing Data from db'
+
+print('Clearing Data from db')
 db_clear()
 
-print 'Initializing the db'
+print('Initializing the db')
 db_init()
 
 while True:
     time_start = time.time()
 
-    print 'Fetching data from Veturilo API to db'
+    print('Fetching data from Veturilo API to db')
     fetch_data_to_db()
 
     time_finish = time.time()
-    time_elapsed = time_finish-time_start
+    time_elapsed = time_finish - time_start
 
-    print 'Done in {} seconds'.format(time_elapsed)
+    print('Done in {} seconds'.format(time_elapsed))
 
-    time_to_wait = max(0.0, 45.0-time_elapsed)
+    time_to_wait = max(0.0, 45.0 - time_elapsed)
 
-    print 'Time now {}, waiting {} Seconds'.format(datetime.datetime.now().time(), time_to_wait)
+    print('Time now {}, waiting {} Seconds'.format(datetime.datetime.now().time(), time_to_wait))
 
 
     def wait_with_counting(duration):
         while True:
-            print '{} seconds left'.format(duration)
+            print('{} seconds left'.format(duration))
             time.sleep(min(10.0, duration))
             duration -= 10.0
             if duration <= 0.0:
