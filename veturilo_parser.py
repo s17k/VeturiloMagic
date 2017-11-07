@@ -19,11 +19,14 @@ def bits_to_probability(bits):
     return probability
 
 USE_TEST_DATA = True
+CLEAR_BIKES_TABLE_ON_START = True
 DB_URL = 'sqlite:///veturilo.db'
 BIKES_TABLE_NAME = 'bikes'
-STATION420_ID = 420420
-FAULTY_PRIORS = odds_to_bits(1.0/99.0)
-CLEAR_BIKES_TABLE_ON_START = True
+NULL_STATION_ID = 1000000000
+
+HYPOTHESES_LABELS = \
+    ['WORKING', 'ANNOYING_TO_USE','VISIBLY_BROKEN', 'INVISIBLY_BROKEN']
+PRIORS = [0.8, 0.1, 0.05, 0.05]
 
 
 def get_bikes_table():
@@ -31,24 +34,26 @@ def get_bikes_table():
 
 
 def db_clear():
-    bikes_table = get_bikes_table()
+    table = get_bikes_table()
     if CLEAR_BIKES_TABLE_ON_START:
-        bikes_table.drop()
+        table.drop()
 
 
 def db_init():
-    bikes_table = get_bikes_table()
+    table = get_bikes_table()
 
-    def create_column(column_name, column_type, table):
+    def create_column_if_not_in_yet(column_name, column_type, a_table):
         if column_name not in table.columns:
-            table.create_column(column_name, column_type)
+            a_table.create_column(column_name, column_type)
 
-    create_column('bike_id', sqlalchemy.INT, bikes_table)
-    create_column('last_station_id', sqlalchemy.String, bikes_table)
-    bikes_table.create_index(['bike_id'])
+    create_column_if_not_in_yet('bike_id', sqlalchemy.INT, table)
+    create_column_if_not_in_yet('last_station_id', sqlalchemy.String, table)
+
+    table.create_index(['bike_id'])
 
 
-def download_data(num):
+def download_data(datafile_index):
+    # Currently set to Warsaw's id
     r = requests.get('https://nextbike.net/maps/nextbike-official.xml?city=210')
     assert r.status_code == 200
 
@@ -56,7 +61,7 @@ def download_data(num):
     veturilo_data.write(r.content.decode("utf-8"))
     veturilo_data.close()
 
-    test_data = open('test_data/{}.xml'.format(num), "w")
+    test_data = open('test_data/{}.xml'.format(datafile_index), "w")
     test_data.write(r.content.decode("utf-8"))
     test_data.close()
 
@@ -66,17 +71,21 @@ def find_bike_in_db(bike_id):
 
 
 class BikeSeen:
-    def __init__(self, bike_id=None, station_id=None, dt=None):
+    """
+    The purpose of BikeSeen is to update the database with newly encountered
+    evidence for one bike
+    """
+    def __init__(self, bike_id=None, station_id=None, date=None):
         self.bike_id = bike_id
         self.station_id = station_id
-        self.date = dt
+        self.date = date
         self.bike_in_db = None
 
     def add_same_station_bike_to_dataset(self, table):
         new_times_seen = self.bike_in_db['times_seen'] + 1
 
         new_amount_of_evidence = self.bike_in_db['evidence_bits']
-        if self.station_id == STATION420_ID:
+        if self.station_id == NULL_STATION_ID:
             if new_times_seen < 4:
                 new_amount_of_evidence += odds_to_bits(1/(10*new_times_seen))
             elif new_times_seen < 10:
@@ -160,7 +169,7 @@ def fetch_data_to_db(num):
         not_seen_bikes_ids = [x for x in all_bike_ids if x not in seen_ids]
 
         for bike_id in not_seen_bikes_ids:
-            bikes_seen.append(BikeSeen(bike_id, STATION420_ID, insert_date))
+            bikes_seen.append(BikeSeen(bike_id, NULL_STATION_ID, insert_date))
 
         update_type_counters = [0 for _ in range(3)]
 
@@ -179,7 +188,7 @@ def fetch_data_to_db(num):
 
 
 def get_rented_bikes():
-    return bikes_table.find(last_station_id=STATION420_ID)
+    return bikes_table.find(last_station_id=NULL_STATION_ID)
 
 
 def print_after_logs(update_type_counters):
