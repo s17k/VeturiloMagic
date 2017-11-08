@@ -9,6 +9,13 @@ import math
 import os.path
 
 
+"""
+It is easier to analyze bits of evidence and I want to grasp an intuition
+in using them. 
+That is why the probability masses are stored as their log2s.   
+"""
+
+
 def odds_to_bits(odds):
     return math.log2(odds)
 
@@ -18,29 +25,57 @@ def bits_to_probability(bits):
     probability = odds/(1+odds)
     return probability
 
-USE_TEST_DATA = True
-CLEAR_BIKES_TABLE_ON_START = True
-DB_URL = 'sqlite:///veturilo.db'
-BIKES_TABLE_NAME = 'bikes'
-NULL_STATION_ID = 1000000000
+
+def probability_to_odds(probability):
+    return 1.0/(1.0/probability-1.0)
+
+
+def probability_to_bits(probability):
+    return odds_to_bits(probability_to_odds(probability))
+
+USE_TEST_DATA = False
+CLEAR_BH_TABLE_ON_START = True
+DB_URL = 'sqlite:///veturilo_magic.db'
+BIKES_HISTORY_SQL_TABLE_NAME = 'bikes_history'
+
+# NULL station is created for the purpose of acknowledging the bikes
+# that had been seen in the past but haven't been seen now
+
+NULL_STATION_ID = 123454321
 
 HYPOTHESES_LABELS = \
     ['WORKING', 'ANNOYING_TO_USE','VISIBLY_BROKEN', 'INVISIBLY_BROKEN']
-PRIORS = [0.8, 0.1, 0.05, 0.05]
+
+"""
+WORKING 
+    - just working
+ANNOYING TO USE 
+    - could be used but are annoying 
+    (so people shorten their trips with them or return them immediately)
+VISIBLY_BROKEN
+    - not usable and you can see it at the first glance when renting them 
+INVISIBLY_BROKEN
+    - not usable but you can't see how they are broken at the first glance
+    
+PRIORS IN PROBABILITIES
+"""
+
+PRIORS_PBB = [0.9, 0.05, 0.025, 0.025]
+PRIORS_BITS = [probability_to_bits(p) for p in PRIORS_PBB]
 
 
-def get_bikes_table():
-    return dataset.connect(DB_URL)[BIKES_TABLE_NAME]
+def get_bikes_history_table():
+    return dataset.connect(DB_URL)[BIKES_HISTORY_SQL_TABLE_NAME]
 
 
-def db_clear():
-    table = get_bikes_table()
-    if CLEAR_BIKES_TABLE_ON_START:
+def table_clear():
+    table = get_bikes_history_table()
+    if CLEAR_BH_TABLE_ON_START:
         table.drop()
 
 
 def db_init():
-    table = get_bikes_table()
+    table = get_bikes_history_table()
 
     def create_column_if_not_in_yet(column_name, column_type, a_table):
         if column_name not in table.columns:
@@ -54,20 +89,39 @@ def db_init():
 
 def download_data(datafile_index):
     # Currently set to Warsaw's id
+    # Download new data from Nextbike's API
     r = requests.get('https://nextbike.net/maps/nextbike-official.xml?city=210')
     assert r.status_code == 200
 
+    data_decoded = r.content.decode("utf-8")
+
+    # Save it to veturilo.xml
     veturilo_data = open('veturilo.xml', "w")
-    veturilo_data.write(r.content.decode("utf-8"))
+    veturilo_data.write(data_decoded)
     veturilo_data.close()
 
+    # Also save it to test_data/$datafile_index.xml for fastening future tests
     test_data = open('test_data/{}.xml'.format(datafile_index), "w")
-    test_data.write(r.content.decode("utf-8"))
+    test_data.write(data_decoded)
     test_data.close()
 
 
 def find_bike_in_db(bike_id):
     return get_bikes_table().find_one(bike_id=bike_id)
+
+
+def event_likelihood_ratios(type_of_event, **kwargs):
+    if type_of_event == 'RENTED_ITSELF':
+        pass
+    elif type_of_event == 'RENTED_A_NEIGHBOUR':
+        pass
+    elif type_of_event == 'GIVEN_BACK_AT_DIFFERENT_STATION':
+        pass
+    elif type_of_event == 'GIVEN_BACK_AT_THE_SAME_STATION':
+        pass
+
+    # default value
+    return [1 for _ in range(4)]
 
 
 class BikeSeen:
