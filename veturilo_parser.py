@@ -83,11 +83,20 @@ def db_init():
 
     create_column_if_not_in_yet('bike_id', sqlalchemy.INT, table)
     create_column_if_not_in_yet('last_station_id', sqlalchemy.String, table)
+    create_column_if_not_in_yet('last_not_null_station_id',
+                                sqlalchemy.String, table)
+
+    # Creating columns for evidence masses for hypotheses
+    for i in range(4):
+        create_column_if_not_in_yet(
+            'evidence_mass_for_hypothesis_{}'.format(i),
+            sqlalchemy.FLOAT, table
+        )
 
     table.create_index(['bike_id'])
 
 
-def download_data(datafile_index):
+def execute_and_save_query(datafile_index):
     # Currently set to Warsaw's id
     # Download new data from Nextbike's API
     r = requests.get('https://nextbike.net/maps/nextbike-official.xml?city=210')
@@ -107,7 +116,7 @@ def download_data(datafile_index):
 
 
 def find_bike_in_db(bike_id):
-    return get_bikes_table().find_one(bike_id=bike_id)
+    return get_bikes_history_table().find_one(bike_id=bike_id)
 
 
 def event_likelihood_ratios(type_of_event, **kwargs):
@@ -124,16 +133,9 @@ def event_likelihood_ratios(type_of_event, **kwargs):
     return [1 for _ in range(4)]
 
 
-class BikeSeen:
-    """
-    The purpose of BikeSeen is to update the database with newly encountered
-    evidence for one bike
-    """
-    def __init__(self, bike_id=None, station_id=None, date=None):
-        self.bike_id = bike_id
-        self.station_id = station_id
-        self.date = date
-        self.bike_in_db = None
+class NewDataForABike:
+    def __init__(self, bike_id, last_not_null_station_id,
+                 last_station_id, new_station_id):
 
     def add_same_station_bike_to_dataset(self, table):
         new_times_seen = self.bike_in_db['times_seen'] + 1
@@ -190,16 +192,20 @@ class BikeSeen:
             return 2
 
 
-def get_data(num):
-    if USE_TEST_DATA and os.path.isfile('./test_data/{}.xml'.format(num)):
-        return minidom.parse('./test_data/{}.xml'.format(num)), True
+def get_next_api_query(query_index):
+    if USE_TEST_DATA:
+        # Get data from saved test files in test_data directory
+        assert os.path.isfile('./test_data/{}.xml'.format(query_index))
+        query_file_name = './test_data/{}.xml'.format(query_index)
     else:
-        download_data(num)
-        return minidom.parse('veturilo.xml'), False
+        execute_and_save_query(query_index)
+        query_file_name = 'veturilo.xml'
+
+    return minidom.parse(query_file_name)
 
 
 def fetch_data_to_db(num):
-    parsed_xml, using_old = get_data(num)
+    parsed_xml, using_old = get_next_api_query(num)
 
     stations = parsed_xml.getElementsByTagName('place')
     insert_date = datetime.datetime.now()
